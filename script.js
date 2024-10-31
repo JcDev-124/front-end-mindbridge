@@ -1,45 +1,134 @@
-tinymce.init({ 
-    selector: 'textarea',
-    plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
-    toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat',
-});
+// Constantes
+const LOGIN_URL = 'http://localhost:8081/auth/login';
+const QUESTION_URL = 'http://localhost:8082/question';
+let authToken = '';
 
-const url = 'http://localhost:8081/question/send';
+// Função de login
+async function login(event) {
+    event.preventDefault(); // Evita o redirecionamento padrão
 
-async function sendQuestion() {
-    const text = tinymce.get('questao').getContent();
-    const image = document.querySelector("#imagem").value; // Presumindo que seja um input de arquivo ou similar
-    const resposta = document.querySelector("#resposta-ia");
-
-    const body = {
-        message: text,
-        imageBase64: image
-    };
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
 
     try {
-        const response = await fetch(url, {
+        const response = await fetch(LOGIN_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
+            body: JSON.stringify({ login: email, password: password })
+        });
+
+        if (!response.ok) {
+            throw new Error('Erro na autenticação: ' + response.statusText);
+        }
+
+        const data = await response.json();
+        authToken = data.token; // Armazena o token recebido
+        localStorage.setItem('authToken', authToken); // Armazena no localStorage
+        window.location.href = "mindbridge.html";
+
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Falha no login: ' + error.message);
+    }
+}
+
+// Inicializa o TinyMCE
+tinymce.init({ 
+    selector: 'textarea',
+    plugins: 'lists',
+    toolbar: 'undo redo | formatselect | bold italic underline | removeformat',
+});
+
+// Função para capturar o conteúdo da questão
+function getQuestionContent() {
+    return tinymce.get('questao').getContent({ format: 'text' });
+}
+
+// Função para capturar a imagem selecionada
+function getImageContent() {
+    return document.querySelector("#imagem").value;
+}
+
+// Função para capturar a opção selecionada
+function getSelectedOption() {
+    const options = document.getElementsByName('opcao');
+    for (let option of options) {
+        if (option.checked) {
+            return option.value;
+        }
+    }
+    return null;
+}
+
+// Função para capturar palavras em negrito
+function getBoldWords() {
+    const boldContent = tinymce.get('questao').getContent();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(boldContent, 'text/html');
+    const boldElements = doc.querySelectorAll('strong');
+    const boldWordsArray = Array.from(boldElements).map(el => el.textContent);
+    return boldWordsArray.join(', ');
+}
+
+// Função para construir o corpo da requisição
+function buildRequestBody(text, image, selectedOption, boldWords) {
+    return {
+        message: text,
+        imageBase64: image,
+        neurodiversityOption: selectedOption,
+        importantWords: boldWords
+    };
+}
+
+// Função para enviar a questão
+async function sendQuestion() {
+    authToken = localStorage.getItem('authToken'); // Recupera o token do localStorage
+    if (!authToken) {
+        alert('Você precisa fazer login primeiro.');
+        window.location.href = "index.html";
+        return; // Para garantir que a função não continue se o token não estiver presente
+    }
+
+    console.log('Token antes de enviar a questão:', authToken); // Debug
+
+    const text = getQuestionContent();
+    const image = getImageContent();
+    const selectedOption = getSelectedOption();
+    const boldWords = getBoldWords();
+
+    const body = buildRequestBody(text, image, selectedOption, boldWords);
+
+    try {
+        const response = await fetch(QUESTION_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}` // Insere o token no cabeçalho
+            },
             body: JSON.stringify(body)
         });
-    
+
         if (!response.ok) {
             throw new Error('Erro na requisição: ' + response.statusText);
         }
 
-        // Obtém a resposta como texto
         const textResponse = await response.text();
-
         tinymce.get('resposta-ia').setContent(textResponse);
 
-        console.log(textResponse); // Para depuração
-        
     } catch (error) {
         console.error('Erro:', error);
     }
 }
 
-const botaoEnviar = document.querySelector("#enviar");
-botaoEnviar.addEventListener("click", sendQuestion);
+// Aguarda o carregamento do DOM antes de adicionar o evento ao botão
+document.addEventListener("DOMContentLoaded", function () {
+    const enviarButton = document.querySelector("#enviar");
+    
+    if (enviarButton) {
+        enviarButton.addEventListener("click", sendQuestion);
+    } else {
+        console.error("Elemento com ID 'enviar' não encontrado.");
+    }
+});
