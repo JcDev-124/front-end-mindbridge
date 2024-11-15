@@ -26,7 +26,7 @@ async function login(event) {
         const data = await response.json();
         authToken = data.token; // Armazena o token recebido
         localStorage.setItem('authToken', authToken); // Armazena no localStorage
-        window.location.href = "index.html";
+        window.location.href = "dash.html";
 
     } catch (error) {
         console.error('Erro:', error);
@@ -111,6 +111,7 @@ async function sendQuestion() {
         });
 
         if (!response.ok) {
+            window.location.href = "index.html";
             throw new Error('Erro na requisição: ' + response.statusText);
         }
 
