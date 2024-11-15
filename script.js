@@ -111,8 +111,11 @@ async function sendQuestion() {
         });
 
         if (!response.ok) {
-            window.location.href = "index.html";
-            throw new Error('Erro na requisição: ' + response.statusText);
+            if (response.status === 403) {
+                window.location.href = 'index.html';
+            } else {
+                throw new Error('Erro na requisição: ' + response.statusText);
+            }
         }
 
         const textResponse = await response.text();
@@ -123,7 +126,6 @@ async function sendQuestion() {
     }
 }
 
-// Aguarda o carregamento do DOM antes de adicionar o evento ao botão
 document.addEventListener("DOMContentLoaded", function () {
     const enviarButton = document.querySelector("#enviar");
     
