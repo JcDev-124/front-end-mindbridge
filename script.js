@@ -46,9 +46,25 @@ function getQuestionContent() {
     return tinymce.get('questao').getContent({ format: 'text' });
 }
 
-// Função para capturar a imagem selecionada
+// Função para capturar a imagem selecionada e convertê-la para base64
 function getImageContent() {
-    return document.querySelector("#imagem").value;
+    return new Promise((resolve, reject) => {
+        const fileInput = document.querySelector("#imagem");
+        const file = fileInput.files[0];
+
+        if (!file) {
+            resolve(null);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            resolve(reader.result.split(',')[1]); // Remove a parte do prefixo da string base64
+        };
+        reader.onerror = reject;
+
+        reader.readAsDataURL(file);
+    });
 }
 
 // Função para capturar a opção selecionada
@@ -94,7 +110,7 @@ async function sendQuestion() {
     console.log('Token antes de enviar a questão:', authToken); // Debug
 
     const text = getQuestionContent();
-    const image = getImageContent();
+    const image = await getImageContent();
     const selectedOption = getSelectedOption();
     const boldWords = getBoldWords();
 
@@ -118,7 +134,13 @@ async function sendQuestion() {
             }
         }
 
-        const textResponse = await response.text();
+        // A resposta será um JSON, então você precisa transformá-la em objeto
+        const jsonResponse = await response.json();
+
+        // Acessar o conteúdo da resposta
+        const textResponse = jsonResponse.choices[0].message.content;
+
+        // Exibir o conteúdo no editor TinyMCE
         tinymce.get('resposta-ia').setContent(textResponse);
 
     } catch (error) {
