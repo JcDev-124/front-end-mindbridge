@@ -14,9 +14,9 @@ async function login(event) {
         const response = await fetch(LOGIN_URL, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ login: email, password: password })
+            body: JSON.stringify({ login: email, password: password }),
         });
 
         if (!response.ok) {
@@ -26,16 +26,16 @@ async function login(event) {
         const data = await response.json();
         authToken = data.token; // Armazena o token recebido
         localStorage.setItem('authToken', authToken); // Armazena no localStorage
+        console.log('Login bem-sucedido. Token armazenado:', authToken); // Debug
         window.location.href = "dash.html";
-
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro no login:', error);
         alert('Falha no login: ' + error.message);
     }
 }
 
 // Inicializa o TinyMCE
-tinymce.init({ 
+tinymce.init({
     selector: 'textarea',
     plugins: 'lists',
     toolbar: 'undo redo | formatselect | bold italic underline | removeformat',
@@ -84,7 +84,7 @@ function getBoldWords() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(boldContent, 'text/html');
     const boldElements = doc.querySelectorAll('strong');
-    const boldWordsArray = Array.from(boldElements).map(el => el.textContent);
+    const boldWordsArray = Array.from(boldElements).map((el) => el.textContent);
     return boldWordsArray.join(', ');
 }
 
@@ -94,20 +94,20 @@ function buildRequestBody(text, image, selectedOption, boldWords) {
         message: text,
         imageBase64: image,
         neurodiversityOption: selectedOption,
-        importantWords: boldWords
+        importantWords: boldWords,
     };
 }
 
 // Função para enviar a questão
 async function sendQuestion() {
     authToken = localStorage.getItem('authToken'); // Recupera o token do localStorage
+    
+
     if (!authToken) {
         alert('Você precisa fazer login primeiro.');
         window.location.href = "index.html";
-        return; // Para garantir que a função não continue se o token não estiver presente
+        return; // Garante que a função não continua sem o token
     }
-
-    console.log('Token antes de enviar a questão:', authToken); // Debug
 
     const text = getQuestionContent();
     const image = await getImageContent();
@@ -116,41 +116,49 @@ async function sendQuestion() {
 
     const body = buildRequestBody(text, image, selectedOption, boldWords);
 
+    console.log('Enviando requisição com o token:', authToken); // Debug
+
     try {
         const response = await fetch(QUESTION_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}` // Insere o token no cabeçalho
+                'Authorization': `Bearer ${authToken}`,
             },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
         });
-
+    
         if (!response.ok) {
             if (response.status === 403) {
+                alert('Sessão expirada. Faça login novamente.');
                 window.location.href = 'index.html';
             } else {
                 throw new Error('Erro na requisição: ' + response.statusText);
             }
         }
-
-        // A resposta será um JSON, então você precisa transformá-la em objeto
+    
         const jsonResponse = await response.json();
-
-        // Acessar o conteúdo da resposta
-        const textResponse = jsonResponse.choices[0].message.content;
-
-        // Exibir o conteúdo no editor TinyMCE
-        tinymce.get('resposta-ia').setContent(textResponse);
-
+        console.log('Resposta completa da API:', jsonResponse);
+    
+        if (jsonResponse.choices && jsonResponse.choices.length > 0) {
+            const textResponse = jsonResponse.choices[0].message.content;
+            tinymce.get('resposta-ia').setContent(textResponse);
+            console.log('Resposta recebida:', textResponse);
+        } else {
+            console.error('Estrutura inesperada na resposta:', jsonResponse);
+            alert('Resposta inválida da API. Consulte o console para detalhes.');
+        }
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro ao enviar a questão:', error);
+        alert('Falha ao enviar a questão. Verifique os detalhes no console.');
     }
+    
 }
 
+// Evento para configurar o botão de envio
 document.addEventListener("DOMContentLoaded", function () {
     const enviarButton = document.querySelector("#enviar");
-    
+
     if (enviarButton) {
         enviarButton.addEventListener("click", sendQuestion);
     } else {
